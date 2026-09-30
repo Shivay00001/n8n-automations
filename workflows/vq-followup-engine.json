@@ -1,0 +1,267 @@
+{
+  "active": false,
+  "connections": {
+    "Follow-Up Webhook": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Build Sequence",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Build Sequence": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Send Plan",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Send Plan": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Has Callback?",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Has Callback?": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Send Step 1 (Day 0)",
+            "type": "main"
+          }
+        ],
+        []
+      ]
+    },
+    "Send Step 1 (Day 0)": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Wait 2 Days",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Wait 2 Days": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Send Step 2 (Day 2)",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Send Step 2 (Day 2)": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Wait 5 Days",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Wait 5 Days": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Send Step 3 (Day 7)",
+            "type": "main"
+          }
+        ]
+      ]
+    }
+  },
+  "name": "VQ Follow-Up Engine",
+  "nodes": [
+    {
+      "id": "f1",
+      "name": "Follow-Up Webhook",
+      "parameters": {
+        "httpMethod": "POST",
+        "options": {},
+        "path": "followup-start",
+        "responseMode": "responseNode"
+      },
+      "position": [
+        200,
+        300
+      ],
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "f1f1f1f1-0000-4000-8000-000000000001"
+    },
+    {
+      "id": "f2",
+      "name": "Build Sequence",
+      "parameters": {
+        "jsCode": "const _raw = $input.first().json;\nconst _in = (_raw && typeof _raw === 'object' && _raw.body && typeof _raw.body === 'object') ? _raw.body : _raw;\nconst name = (_in.name || 'there').toString().trim();\nconst phone = (_in.phone || '').toString();\nconst email = (_in.email || '').toString();\nconst interest = (_in.interest || 'our services').toString();\nconst business = (_in.business || 'our business').toString();\nconst callback_url = (_in.callback_url || '').toString();\nconst now = Date.now();\nconst at = (days) => new Date(now + days * 86400000).toISOString();\nconst steps = [\n  { step: 1, day: 0, send_at: at(0), message: 'Hi ' + name + '! Thanks for your interest in ' + interest + ' at ' + business + '. Our team will call you within 30 minutes.' },\n  { step: 2, day: 2, send_at: at(2), message: 'Hi ' + name + '! Just checking in - still interested in ' + interest + '? Reply YES and we will schedule your free consultation.' },\n  { step: 3, day: 7, send_at: at(7), message: 'Hi ' + name + ', last call - we are holding a free consultation slot for you this week at ' + business + '. Reply to claim it.' }\n];\nreturn [{ json: {\n  status: 'sequence_started', name: name, phone: phone, email: email,\n  interest: interest, business: business, callback_url: callback_url,\n  hasCallback: callback_url.length > 10, steps: steps,\n  step1_message: steps[0].message, step2_message: steps[1].message, step3_message: steps[2].message,\n  receivedAt: new Date().toISOString()\n}}];\n",
+        "mode": "runOnceForAllItems"
+      },
+      "position": [
+        420,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "f3",
+      "name": "Send Plan",
+      "parameters": {
+        "options": {
+          "responseCode": 200
+        },
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "position": [
+        640,
+        300
+      ],
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1
+    },
+    {
+      "id": "f4",
+      "name": "Has Callback?",
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.hasCallback }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              },
+              "rightValue": true
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          }
+        },
+        "options": {}
+      },
+      "position": [
+        860,
+        300
+      ],
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2
+    },
+    {
+      "id": "f5",
+      "name": "Send Step 1 (Day 0)",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.callback_url }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ to: $json.phone, step: 1, message: $json.step1_message }) }}",
+        "options": {}
+      },
+      "position": [
+        1080,
+        300
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2
+    },
+    {
+      "id": "f6",
+      "name": "Wait 2 Days",
+      "parameters": {
+        "resume": "afterTimeInterval",
+        "amount": 2,
+        "unit": "days"
+      },
+      "position": [
+        1300,
+        300
+      ],
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1
+    },
+    {
+      "id": "f7",
+      "name": "Send Step 2 (Day 2)",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.callback_url }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ to: $json.phone, step: 2, message: $json.step2_message }) }}",
+        "options": {}
+      },
+      "position": [
+        1520,
+        300
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2
+    },
+    {
+      "id": "f8",
+      "name": "Wait 5 Days",
+      "parameters": {
+        "resume": "afterTimeInterval",
+        "amount": 5,
+        "unit": "days"
+      },
+      "position": [
+        1740,
+        300
+      ],
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1
+    },
+    {
+      "id": "f9",
+      "name": "Send Step 3 (Day 7)",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.callback_url }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ to: $json.phone, step: 3, message: $json.step3_message }) }}",
+        "options": {}
+      },
+      "position": [
+        1960,
+        300
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2
+    }
+  ],
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

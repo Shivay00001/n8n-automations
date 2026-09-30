@@ -1,0 +1,134 @@
+{
+  "active": false,
+  "connections": {
+    "Enquiry Webhook": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Detect Intent",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Detect Intent": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Needs Human?",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Needs Human?": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Send Reply",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "Send Reply",
+            "type": "main"
+          }
+        ]
+      ]
+    }
+  },
+  "name": "VQ AI Enquiry Agent - Instant Responder",
+  "nodes": [
+    {
+      "id": "a1",
+      "name": "Enquiry Webhook",
+      "parameters": {
+        "httpMethod": "POST",
+        "options": {},
+        "path": "enquiry-in",
+        "responseMode": "responseNode"
+      },
+      "position": [
+        240,
+        300
+      ],
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "e1a1a1a1-0000-4000-8000-000000000001"
+    },
+    {
+      "id": "a2",
+      "name": "Detect Intent",
+      "parameters": {
+        "jsCode": "const _raw = $input.first().json;\nconst _in = (_raw && typeof _raw === 'object' && _raw.body && typeof _raw.body === 'object') ? _raw.body : _raw;\nconst name = (_in.name || 'there').toString().trim();\nconst channel = (_in.channel || 'web').toString().toLowerCase();\nconst message = (_in.message || '').toString();\nconst msg = message.toLowerCase();\nconst business = (_in.business || 'our business').toString();\nconst phone = (_in.phone || '').toString();\nconst email = (_in.email || '').toString();\n\nconst bookingKw = ['book', 'appointment', 'viewing', 'visit', 'schedule', 'slot', 'reserve', 'reservation'];\nconst pricingKw = ['price', 'cost', 'quote', 'charge', 'fee', 'emi', 'discount', 'offer'];\nconst infoKw = ['timing', 'location', 'address', 'services', 'treatment', 'menu', 'info', 'details', 'how', 'when', 'where'];\nconst complaintKw = ['complaint', 'refund', 'cancel', 'rude', 'bad', 'worst', 'angry', 'disappointed'];\nconst urgentKw = ['urgent', 'asap', 'today', 'immediately', 'emergency', 'call me'];\n\nconst has = (list) => list.some(k => msg.includes(k));\nlet intent = 'other';\nif (has(complaintKw)) intent = 'complaint';\nelse if (has(bookingKw)) intent = 'booking';\nelse if (has(pricingKw)) intent = 'pricing';\nelse if (has(infoKw)) intent = 'info';\n\nconst urgent = has(urgentKw) || intent === 'complaint';\nconst needsHuman = intent === 'complaint' || urgent;\n\nconst short = channel === 'whatsapp' || channel === 'sms';\nconst replies = {\n  booking: short\n    ? 'Hi ' + name + '! I can book that for you right now. Which day & time suits you? Reply with your preference.'\n    : 'Hi ' + name + '! Thanks for reaching out to ' + business + '. I can book your appointment right now - just tell me your preferred day and time, and I will confirm the slot instantly.',\n  pricing: short\n    ? 'Hi ' + name + '! Sharing pricing now - our team will send your exact quote within 30 minutes.'\n    : 'Hi ' + name + '! Thanks for asking about pricing at ' + business + '. I have noted your requirement and our team will send you the exact quote within 30 minutes. Anything else I can help with meanwhile?',\n  info: short\n    ? 'Hi ' + name + '! Thanks for contacting ' + business + '. Our team will reply within 2 business hours.'\n    : 'Hi ' + name + '! Thanks for your interest in ' + business + '. Our team will get back within 2 business hours with complete details. Want me to book a free 15-min consultation meanwhile?',\n  complaint: 'Hi ' + name + ', I am very sorry for the experience. This is marked PRIORITY - a senior team member will call you within 15 minutes to resolve it.',\n  other: short\n    ? 'Hi ' + name + '! Thanks for contacting ' + business + '. Our team will respond within 2 business hours.'\n    : 'Hi ' + name + '! Thanks for contacting ' + business + '. We have received your message and our team will respond within 2 business hours.'\n};\n\nreturn [{ json: {\n  name: name, channel: channel, phone: phone, email: email, business: business,\n  message: message, intent: intent, urgent: urgent, needsHuman: needsHuman,\n  reply: replies[intent],\n  nextAction: needsHuman ? 'Human callback within 15 min (PRIORITY)' : intent === 'booking' ? 'Collect day/time and confirm slot' : 'Team follow-up within 2 business hours',\n  receivedAt: new Date().toISOString()\n}}];\n",
+        "mode": "runOnceForAllItems"
+      },
+      "position": [
+        480,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "a3",
+      "name": "Needs Human?",
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "cond-1",
+              "leftValue": "={{ $json.needsHuman }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              },
+              "rightValue": true
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          }
+        },
+        "options": {}
+      },
+      "position": [
+        700,
+        300
+      ],
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2
+    },
+    {
+      "id": "a4",
+      "name": "Send Reply",
+      "parameters": {
+        "options": {
+          "responseCode": 200
+        },
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "position": [
+        920,
+        300
+      ],
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1
+    }
+  ],
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

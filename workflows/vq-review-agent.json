@@ -1,0 +1,134 @@
+{
+  "active": false,
+  "connections": {
+    "Review Webhook": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Check Rating",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Check Rating": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Happy?",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Happy?": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Send Result",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "Send Result",
+            "type": "main"
+          }
+        ]
+      ]
+    }
+  },
+  "name": "VQ Review Request Agent",
+  "nodes": [
+    {
+      "id": "j1",
+      "name": "Review Webhook",
+      "parameters": {
+        "httpMethod": "POST",
+        "options": {},
+        "path": "review-ask",
+        "responseMode": "responseNode"
+      },
+      "position": [
+        200,
+        300
+      ],
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "f5f5f5f5-0000-4000-8000-000000000005"
+    },
+    {
+      "id": "j2",
+      "name": "Check Rating",
+      "parameters": {
+        "jsCode": "const _raw = $input.first().json;\nconst _in = (_raw && typeof _raw === 'object' && _raw.body && typeof _raw.body === 'object') ? _raw.body : _raw;\nconst name = (_in.name || 'there').toString().trim();\nconst phone = (_in.phone || '').toString();\nconst rating = parseInt(_in.rating || '0', 10);\nconst review_link = (_in.review_link || '').toString();\nconst business = (_in.business || 'our business').toString();\nconst happy = rating >= 4;\nreturn [{ json: {\n  name: name, phone: phone, rating: rating, business: business, happy: happy,\n  message: happy\n    ? 'Hi ' + name + '! Glad you loved ' + business + '. It takes 30 seconds to review us here: ' + review_link + ' - thank you!'\n    : 'ALERT: ' + name + ' rated ' + rating + '/5. Call ' + phone + ' within 1 hour to resolve before they review publicly.',\n  action: happy ? 'send_review_link' : 'alert_owner',\n  receivedAt: new Date().toISOString()\n}}];\n",
+        "mode": "runOnceForAllItems"
+      },
+      "position": [
+        460,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "j3",
+      "name": "Happy?",
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.happy }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              },
+              "rightValue": true
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          }
+        },
+        "options": {}
+      },
+      "position": [
+        720,
+        300
+      ],
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2
+    },
+    {
+      "id": "j4",
+      "name": "Send Result",
+      "parameters": {
+        "options": {
+          "responseCode": 200
+        },
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "position": [
+        980,
+        300
+      ],
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1
+    }
+  ],
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

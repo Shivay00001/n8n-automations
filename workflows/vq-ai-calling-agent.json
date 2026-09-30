@@ -1,0 +1,220 @@
+{
+  "active": false,
+  "connections": {
+    "Call Webhook": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Route Call",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Route Call": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "After Hours?",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Choice Webhook": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Read Choice",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Read Choice": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Answer Choice (TwiML)",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "After Hours?": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Answer Call (TwiML)",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "Answer Call (TwiML)",
+            "type": "main"
+          }
+        ]
+      ]
+    }
+  },
+  "name": "VQ AI Calling Agent",
+  "nodes": [
+    {
+      "id": "c1",
+      "name": "Call Webhook",
+      "parameters": {
+        "httpMethod": "POST",
+        "options": {},
+        "path": "call-in",
+        "responseMode": "responseNode"
+      },
+      "position": [
+        200,
+        300
+      ],
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "c3c3c3c3-0000-4000-8000-0000000000c3"
+    },
+    {
+      "id": "c2",
+      "name": "Route Call",
+      "parameters": {
+        "jsCode": "\nconst _raw = $input.first().json;\nconst _in = (_raw && typeof _raw === 'object' && _raw.body && typeof _raw.body === 'object') ? _raw.body : _raw;\nlet host = '';\ntry { host = $('Call Webhook').first().json.headers.host || ''; } catch (e) {}\nconst base = (host ? 'https://' + host : (_in.base_url || '')).toString().replace(/\\/$/, '');\nconst caller = (_in.Caller || _in.caller || '').toString();\nconst business = (_in.business || 'our business').toString();\nconst h = new Date().getHours();\nconst afterHours = h < 9 || h >= 21;\nconst twiml = afterHours\n  ? '<Response><Say voice=\"alice\">Thanks for calling ' + business + '. We are currently closed. Please call between 9 AM and 9 PM, or send us a WhatsApp message.</Say><Hangup/></Response>'\n  : '<Response><Say voice=\"alice\">Thanks for calling ' + business + '. Press 1 to book an appointment, press 2 for timings.</Say><Gather numDigits=\"1\" action=\"' + base + '/webhook/call-choice\" method=\"POST\" timeout=\"10\"/></Response>';\nreturn [{ json: { caller: caller, business: business, afterHours: afterHours, twiml: twiml,\n  gather_url: base + '/webhook/call-choice', receivedAt: new Date().toISOString() } }];\n",
+        "mode": "runOnceForAllItems"
+      },
+      "position": [
+        460,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "c3",
+      "name": "After Hours?",
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.afterHours }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              },
+              "rightValue": true
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          }
+        },
+        "options": {}
+      },
+      "position": [
+        720,
+        300
+      ],
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2
+    },
+    {
+      "id": "c4",
+      "name": "Answer Call (TwiML)",
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.twiml }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/xml"
+              }
+            ]
+          }
+        }
+      },
+      "position": [
+        980,
+        300
+      ],
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1
+    },
+    {
+      "id": "c5",
+      "name": "Choice Webhook",
+      "parameters": {
+        "httpMethod": "POST",
+        "options": {},
+        "path": "call-choice",
+        "responseMode": "responseNode"
+      },
+      "position": [
+        200,
+        560
+      ],
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "c5c5c5c5-0000-4000-8000-0000000000c5"
+    },
+    {
+      "id": "c6",
+      "name": "Read Choice",
+      "parameters": {
+        "jsCode": "const _raw = $input.first().json;\nconst _in = (_raw && typeof _raw === 'object' && _raw.body && typeof _raw.body === 'object') ? _raw.body : _raw;\nconst d = (_in.Digits || _in.digits || '').toString().trim();\nlet say;\nif (d === '1') say = 'Great! Our team will call you back within 15 minutes to confirm your booking.';\nelse if (d === '2') say = 'We are open 9 AM to 9 PM, all seven days.';\nelse say = 'Sorry, we did not get that. Our team will call you back shortly.';\nreturn [{ json: { digits: d, caller: (_in.Caller || _in.caller || '').toString(),\n  twiml: '<Response><Say voice=\"alice\">' + say + '</Say><Hangup/></Response>' } }];\n",
+        "mode": "runOnceForAllItems"
+      },
+      "position": [
+        460,
+        560
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "c7",
+      "name": "Answer Choice (TwiML)",
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.twiml }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/xml"
+              }
+            ]
+          }
+        }
+      },
+      "position": [
+        720,
+        560
+      ],
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1
+    }
+  ],
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

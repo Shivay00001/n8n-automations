@@ -1,0 +1,188 @@
+{
+  "active": false,
+  "connections": {
+    "WhatsApp Webhook": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Normalize Input",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Normalize Input": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Detect Intent",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Detect Intent": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Has Sender?",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Has Sender?": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Send WhatsApp",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "Send Result",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Send WhatsApp": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Send Result",
+            "type": "main"
+          }
+        ]
+      ]
+    }
+  },
+  "name": "VQ WhatsApp AI Agent",
+  "nodes": [
+    {
+      "id": "a1",
+      "name": "WhatsApp Webhook",
+      "parameters": {
+        "httpMethod": "POST",
+        "options": {},
+        "path": "wa-in",
+        "responseMode": "responseNode"
+      },
+      "position": [
+        200,
+        300
+      ],
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "a1a1a1a1-0000-4000-8000-0000000000a1"
+    },
+    {
+      "id": "a2",
+      "name": "Normalize Input",
+      "parameters": {
+        "jsCode": "const _raw = $input.first().json;\nconst _in = (_raw && typeof _raw === 'object' && _raw.body && typeof _raw.body === 'object') ? _raw.body : _raw;\nconst m = (_in.entry && _in.entry[0] && _in.entry[0].changes && _in.entry[0].changes[0] &&\n           _in.entry[0].changes[0].value && _in.entry[0].changes[0].value.messages &&\n           _in.entry[0].changes[0].value.messages[0]) || {};\nconst message = (_in.Body || (m.text && m.text.body) || '').toString();\nconst phone = ((_in.From || m.from || '').toString()).replace('whatsapp:', '');\nconst cb = (_in.callback_url || '').toString();\nreturn [{ json: { phone: phone, message: message, channel: 'whatsapp',\n  name: (_in.ProfileName || 'there').toString(), callback_url: cb, hasSender: cb.length > 10 } }];\n",
+        "mode": "runOnceForAllItems"
+      },
+      "position": [
+        420,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "a3",
+      "name": "Detect Intent",
+      "parameters": {
+        "jsCode": "const _raw = $input.first().json;\nconst _in = (_raw && typeof _raw === 'object' && _raw.body && typeof _raw.body === 'object') ? _raw.body : _raw;\nconst msg = (_in.message || '').toLowerCase();\nconst rules = [\n  ['complaint', ['complaint', 'bad', 'worst', 'terrible', 'rude', 'refund', 'angry', 'cheat', 'fraud']],\n  ['booking', ['book', 'appointment', 'slot', 'schedule', 'visit', 'reserve']],\n  ['pricing', ['price', 'cost', 'charge', 'fee', 'quote', 'rate']],\n  ['info', ['timing', 'hour', 'open', 'close', 'location', 'address', 'service', 'offer']]\n];\nlet intent = 'other';\nfor (const r of rules) { if (r[1].some(k => msg.includes(k))) { intent = r[0]; break; } }\nconst urgent = /urgent|asap|immediately|emergency/.test(msg);\nconst needsHuman = intent === 'complaint' || urgent;\nconst replies = {\n  booking: 'Sure! Please share your name and preferred date/time and we will confirm your slot.',\n  pricing: 'Thanks for asking! Share what you need and we will send an exact quote within 30 minutes.',\n  info: 'Happy to help! What would you like to know - timings, location or services?',\n  complaint: 'We are very sorry about this. Our manager will call you within 30 minutes to fix it on priority.',\n  other: 'Thanks for messaging us! Our team will reply within 30 minutes. Meanwhile, how can we help?'\n};\nreturn [{ json: Object.assign({}, _in, { intent: intent, needsHuman: needsHuman,\n  reply: replies[intent], status: 'processed', receivedAt: new Date().toISOString() }) }];\n",
+        "mode": "runOnceForAllItems"
+      },
+      "position": [
+        640,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "a4",
+      "name": "Has Sender?",
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.hasSender }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              },
+              "rightValue": true
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          }
+        },
+        "options": {}
+      },
+      "position": [
+        860,
+        300
+      ],
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2
+    },
+    {
+      "id": "a5",
+      "name": "Send WhatsApp",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.callback_url }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ to: $json.phone, message: $json.reply, intent: $json.intent }) }}",
+        "options": {}
+      },
+      "position": [
+        1080,
+        300
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2
+    },
+    {
+      "id": "a6",
+      "name": "Send Result",
+      "parameters": {
+        "options": {
+          "responseCode": 200
+        },
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "position": [
+        1300,
+        300
+      ],
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1
+    }
+  ],
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

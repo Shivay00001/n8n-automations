@@ -1,0 +1,134 @@
+{
+  "active": false,
+  "connections": {
+    "Ad Lead Webhook": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Qualify Ad Lead",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Qualify Ad Lead": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Is Hot?",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Is Hot?": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Send Response",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "Send Response",
+            "type": "main"
+          }
+        ]
+      ]
+    }
+  },
+  "name": "VQ Ad Lead Instant Responder",
+  "nodes": [
+    {
+      "id": "i1",
+      "name": "Ad Lead Webhook",
+      "parameters": {
+        "httpMethod": "POST",
+        "options": {},
+        "path": "ad-lead",
+        "responseMode": "responseNode"
+      },
+      "position": [
+        200,
+        300
+      ],
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "f4f4f4f4-0000-4000-8000-000000000004"
+    },
+    {
+      "id": "i2",
+      "name": "Qualify Ad Lead",
+      "parameters": {
+        "jsCode": "const _raw = $input.first().json;\nconst _in = (_raw && typeof _raw === 'object' && _raw.body && typeof _raw.body === 'object') ? _raw.body : _raw;\nconst name = (_in.name || 'there').toString().trim();\nconst phone = (_in.phone || '').toString();\nconst email = (_in.email || '').toString();\nconst campaign = (_in.campaign || 'our ad').toString();\nconst adset = (_in.adset || '').toString();\nconst platform = (_in.platform || 'meta').toString().toLowerCase();\nconst form = (_in.form_name || '').toString();\n\nlet score = 0; const reasons = [];\nif (phone.replace(/\\D/g, '').length >= 10) { score += 40; reasons.push('Valid phone (+40)'); }\nif (/@/.test(email)) { score += 25; reasons.push('Email provided (+25)'); }\nif (name && name !== 'there') { score += 15; reasons.push('Name provided (+15)'); }\nif (campaign && campaign !== 'our ad') { score += 20; reasons.push('High-intent campaign: ' + campaign + ' (+20)'); }\nconst tier = score >= 70 ? 'HOT' : score >= 40 ? 'WARM' : 'COLD';\nreturn [{ json: {\n  name: name, phone: phone, email: email, campaign: campaign, adset: adset,\n  platform: platform, form_name: form, score: score, tier: tier, reasons: reasons,\n  instantReply: 'Hi ' + name + '! Thanks for your interest in ' + campaign + '. Our team will call you within 30 minutes with details.',\n  nextAction: tier === 'HOT' ? 'Call within 30 min (HOT ad lead)' : 'Follow up within 4 hours',\n  receivedAt: new Date().toISOString()\n}}];\n",
+        "mode": "runOnceForAllItems"
+      },
+      "position": [
+        460,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "i3",
+      "name": "Is Hot?",
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.tier }}",
+              "operator": {
+                "operation": "equals",
+                "singleValue": true,
+                "type": "string"
+              },
+              "rightValue": "HOT"
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          }
+        },
+        "options": {}
+      },
+      "position": [
+        720,
+        300
+      ],
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2
+    },
+    {
+      "id": "i4",
+      "name": "Send Response",
+      "parameters": {
+        "options": {
+          "responseCode": 200
+        },
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "position": [
+        980,
+        300
+      ],
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1
+    }
+  ],
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

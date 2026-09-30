@@ -1,0 +1,134 @@
+{
+  "active": false,
+  "connections": {
+    "Booking Webhook": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Validate & Book",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Validate & Book": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Slot OK?",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Slot OK?": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Confirm Booking",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "Confirm Booking",
+            "type": "main"
+          }
+        ]
+      ]
+    }
+  },
+  "name": "VQ Smart Booking Agent",
+  "nodes": [
+    {
+      "id": "b1",
+      "name": "Booking Webhook",
+      "parameters": {
+        "httpMethod": "POST",
+        "options": {},
+        "path": "agent-booking",
+        "responseMode": "responseNode"
+      },
+      "position": [
+        240,
+        300
+      ],
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "e1b1b1b1-0000-4000-8000-000000000002"
+    },
+    {
+      "id": "b2",
+      "name": "Validate & Book",
+      "parameters": {
+        "jsCode": "const _raw = $input.first().json;\nconst _in = (_raw && typeof _raw === 'object' && _raw.body && typeof _raw.body === 'object') ? _raw.body : _raw;\nconst name = (_in.name || 'Guest').toString().trim();\nconst phone = (_in.phone || '').toString();\nconst email = (_in.email || '').toString();\nconst bookingType = (_in.booking_type || 'appointment').toString().toLowerCase();\nconst date = _in.date; const time = (_in.time || '10:00').toString();\nconst partySize = parseInt(_in.party_size || '1', 10);\nconst notes = (_in.notes || '').toString();\n\nconst fail = (reason, fix) => [{ json: { status: 'rejected', reason: reason, fix: fix, receivedAt: new Date().toISOString() } }];\n\nif (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(date || '')) return fail('Invalid date.', 'Send date as YYYY-MM-DD, e.g. 2026-10-05.');\nif (!/^[0-9]{2}:[0-9]{2}$/.test(time)) return fail('Invalid time.', 'Send time as HH:MM in 24h format, e.g. 14:30.');\nconst start = new Date(date + 'T' + time + ':00');\nif (isNaN(start.getTime())) return fail('Invalid date/time combination.', 'Check that the date exists and time is HH:MM (24h).');\nconst now = new Date();\nif (start.getTime() < now.getTime()) return fail('Slot is in the past.', 'Pick a future date and time.');\nif (start.getTime() - now.getTime() < 2 * 3600000) return fail('Too soon - need at least 2 hours notice.', 'Pick a slot at least 2 hours from now.');\nconst hh = start.getHours();\nif (hh < 9 || hh >= 21) return fail('Outside booking hours (09:00-21:00).', 'Pick a time between 09:00 and 21:00.');\nif (!(partySize >= 1 && partySize <= 20)) return fail('Invalid party size.', 'Send party_size between 1 and 20.');\n\nconst end = new Date(start.getTime() + 30 * 60000);\nconst reminderAt = new Date(start.getTime() - 24 * 3600000);\nconst ref = 'VQ-' + Date.now().toString(36).toUpperCase().slice(-4) + Math.random().toString(36).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 2);\nconst typeLabel = { viewing: 'property viewing', appointment: 'appointment', reservation: 'reservation', call: 'callback call' }[bookingType] || bookingType;\n\nreturn [{ json: {\n  status: 'confirmed', bookingRef: ref, name: name, phone: phone, email: email,\n  bookingType: bookingType, partySize: partySize, notes: notes,\n  slotStart: start.toISOString(), slotEnd: end.toISOString(), reminderAt: reminderAt.toISOString(),\n  confirmationMessage: 'Hi ' + name + '! Your ' + typeLabel + ' is confirmed. Ref: ' + ref + '. Date/Time: ' + date + ' ' + time + '. We will send a reminder 24 hours before. Reply to reschedule.',\n  reminderMessage: 'Hi ' + name + '! Reminder: your ' + typeLabel + ' (Ref ' + ref + ') is tomorrow at ' + time + '. See you soon!',\n  receivedAt: new Date().toISOString()\n}}];\n",
+        "mode": "runOnceForAllItems"
+      },
+      "position": [
+        480,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "b3",
+      "name": "Slot OK?",
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "cond-1",
+              "leftValue": "={{ $json.status }}",
+              "operator": {
+                "operation": "equals",
+                "singleValue": true,
+                "type": "string"
+              },
+              "rightValue": "confirmed"
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          }
+        },
+        "options": {}
+      },
+      "position": [
+        700,
+        300
+      ],
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2
+    },
+    {
+      "id": "b4",
+      "name": "Confirm Booking",
+      "parameters": {
+        "options": {
+          "responseCode": 200
+        },
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "position": [
+        920,
+        300
+      ],
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1
+    }
+  ],
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

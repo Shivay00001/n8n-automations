@@ -1,0 +1,180 @@
+{
+  "active": false,
+  "connections": {
+    "Lead Webhook": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Qualify Lead",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Log to CRM Sheet": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Confirm",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Qualify Lead": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Send Instant Reply",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Send Instant Reply": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Shape CRM Row",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Shape CRM Row": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Log to CRM Sheet",
+            "type": "main"
+          }
+        ]
+      ]
+    }
+  },
+  "name": "VQ Instant Lead Responder \u2014 Pro (Gmail + Sheets)",
+  "nodes": [
+    {
+      "id": "f2b72fae-074e-4796-9a89-140bb700c97a",
+      "name": "Lead Webhook",
+      "parameters": {
+        "httpMethod": "POST",
+        "options": {},
+        "path": "lead-in-pro",
+        "responseMode": "responseNode"
+      },
+      "position": [
+        240,
+        300
+      ],
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "eb83c532-6c91-4904-9834-eca872622b5a"
+    },
+    {
+      "id": "42218855-0c90-47e7-90dc-d7a5c37c8c4b",
+      "name": "Qualify Lead",
+      "parameters": {
+        "jsCode": "const _raw = $input.first().json;\nconst data = (_raw && typeof _raw === 'object' && _raw.body && typeof _raw.body === 'object') ? _raw.body : _raw;\nconst name = (data.name || 'there').toString().trim();\nconst service = (data.service || 'general').toString().toLowerCase();\nconst message = (data.message || '').toString().toLowerCase();\nconst phone = (data.phone || '').toString();\nconst email = (data.email || '').toString();\n\nconst hotKeywords = ['urgent','asap','today','tomorrow','price','cost','book','appointment','demo','interested','call me','quote','emi','discount'];\nconst warmKeywords = ['info','details','timing','location','services','offer','how','when','where'];\nlet score = 30;\nfor (const k of hotKeywords) { if (message.includes(k)) score += 12; }\nfor (const k of warmKeywords) { if (message.includes(k)) score += 6; }\nif (phone) score += 10;\nif (email) score += 8;\nif (service !== 'general') score += 5;\nscore = Math.min(score, 99);\n\nconst tier = score >= 70 ? 'HOT' : score >= 45 ? 'WARM' : 'COLD';\nconst replies = {\n  HOT: 'Hi ' + name + '! Thanks for reaching out about ' + service + ' \u2014 your enquiry is marked PRIORITY. Our team will call you within 30 minutes. Anything specific I can help with right away?',\n  WARM: 'Hi ' + name + '! Thanks for your interest in ' + service + '. We will get back within 2 business hours. Want me to book a free 15-min consultation for you?',\n  COLD: 'Hi ' + name + '! Thanks for contacting us about ' + service + '. We will review your message and respond within 24 hours.'\n};\n\nreturn [{ json: {\n  name: name,\n  phone: phone,\n  email: email,\n  service: service,\n  message: data.message || '',\n  score: score,\n  tier: tier,\n  reply: replies[tier],\n  nextAction: tier === 'HOT' ? 'Call within 30 min' : tier === 'WARM' ? 'Follow up within 2 hrs' : 'Follow up within 24 hrs',\n  receivedAt: new Date().toISOString()\n}}];",
+        "mode": "runOnceForAllItems"
+      },
+      "position": [
+        480,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "0bb53a68-cae7-4d56-9850-28bd1b827194",
+      "name": "Send Instant Reply",
+      "parameters": {
+        "emailType": "text",
+        "message": "={{ $json.reply }}\n\n\u2014 Team VisionQuantech\n(Automated instant response; our team follows up personally.)",
+        "operation": "send",
+        "options": {
+          "sendTo": "={{ $json.email }}"
+        },
+        "resource": "message",
+        "subject": "=Thanks {{ $json.name }}! Re: your {{ $json.service }} enquiry [{{ $json.tier }}]"
+      },
+      "position": [
+        700,
+        300
+      ],
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1
+    },
+    {
+      "id": "e89efc26-35e0-489d-b08d-01843c7c59d7",
+      "name": "Shape CRM Row",
+      "parameters": {
+        "jsCode": "const q = $('Qualify Lead').first().json;\nreturn [{ json: {\n  Name: q.name,\n  Phone: q.phone,\n  Email: q.email,\n  Service: q.service,\n  Score: q.score,\n  Tier: q.tier,\n  Reply_Sent: q.reply,\n  Received_At: q.receivedAt,\n  Next_Action: q.nextAction\n}}];",
+        "mode": "runOnceForAllItems"
+      },
+      "position": [
+        920,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "452a0082-ab51-4927-835e-864d2373645d",
+      "name": "Log to CRM Sheet",
+      "parameters": {
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "matchingColumns": [],
+          "schema": [],
+          "value": null
+        },
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": ""
+        },
+        "operation": "append",
+        "options": {},
+        "resource": "sheetWithinDocument",
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Leads"
+        }
+      },
+      "position": [
+        1140,
+        300
+      ],
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.2
+    },
+    {
+      "id": "c042f440-c3e1-4db6-be00-616eca99c914",
+      "name": "Confirm",
+      "parameters": {
+        "options": {
+          "responseCode": 200
+        },
+        "respondWith": "json",
+        "responseBody": "={{ {status: 'processed', tier: $('Qualify Lead').json.tier, score: $('Qualify Lead').json.score, replySentTo: $('Qualify Lead').json.email, loggedToSheet: true} }}"
+      },
+      "position": [
+        1360,
+        300
+      ],
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1
+    }
+  ],
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

@@ -1,0 +1,133 @@
+{
+  "active": false,
+  "connections": {
+    "Audit Webhook": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Prepare Audit",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Prepare Audit": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Fetch Site",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Fetch Site": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Audit Site",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Audit Site": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Send Audit",
+            "type": "main"
+          }
+        ]
+      ]
+    }
+  },
+  "name": "VQ Local SEO Audit Agent",
+  "nodes": [
+    {
+      "id": "h1",
+      "name": "Audit Webhook",
+      "parameters": {
+        "httpMethod": "POST",
+        "options": {},
+        "path": "seo-audit",
+        "responseMode": "responseNode"
+      },
+      "position": [
+        200,
+        300
+      ],
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "f3f3f3f3-0000-4000-8000-000000000003"
+    },
+    {
+      "id": "h1b",
+      "name": "Prepare Audit",
+      "parameters": {
+        "jsCode": "const _raw = $input.first().json;\nconst _in = (_raw && typeof _raw === 'object' && _raw.body && typeof _raw.body === 'object') ? _raw.body : _raw;\nconst b = _in;\nconst url = (b.website_url || b.url || '').toString().trim();\nreturn [{ json: { website_url: url, business_name: (b.business_name || 'the business').toString(),\n  location: (b.location || '').toString(), keyword: (b.keyword || '').toString(),\n  valid: /^https?:\\/\\//i.test(url), receivedAt: new Date().toISOString() } }];\n",
+        "mode": "runOnceForAllItems"
+      },
+      "position": [
+        460,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "h2",
+      "name": "Fetch Site",
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.website_url }}",
+        "options": {}
+      },
+      "position": [
+        720,
+        300
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2
+    },
+    {
+      "id": "h3",
+      "name": "Audit Site",
+      "parameters": {
+        "jsCode": "\nconst _raw = $input.first().json;\nlet html = '';\nif (typeof _raw.data === 'string') html = _raw.data;\nelse if (typeof _raw === 'string') html = _raw;\nelse html = JSON.stringify(_raw);\n// NOTE: the HTTP node replaces the item, so webhook fields (business_name etc.)\n// are NOT in $input here. Pull them from the Webhook node directly.\nlet meta = {};\ntry {\n  const w = $('Audit Webhook').first().json;\n  meta = (w && typeof w === 'object' && w.body && typeof w.body === 'object') ? w.body : (w || {});\n} catch (e) { meta = {}; }\nconst get = (k, d) => {\n  const v = (meta[k] !== undefined && meta[k] !== null) ? meta[k] : _raw[k];\n  return (v === undefined || v === null ? d : v).toString();\n};\nconst business = get('business_name', 'the business');\nconst url = get('website_url', '') || get('url', '');\nconst location = get('location', '');\nconst keyword = get('keyword', '');\nconst lower = html.toLowerCase();\n\nconst checks = [];\nconst add = (name, pass, fix, weight) => checks.push({ check: name, pass: !!pass, fix: fix, weight: weight });\nconst title = (html.match(/<title[^>]*>([^<]*)<\\/title>/i) || [])[1] || '';\nadd('Title tag present', title.length > 0, 'Add a <title> tag with business + keyword.', 15);\nadd('Title length 30-60 chars', title.length >= 30 && title.length <= 60, 'Keep title between 30-60 characters. Current: ' + title.length + '.', 10);\nconst desc = (html.match(/<meta[^>]*name=[\"']description[\"'][^>]*content=[\"']([^\"']*)[\"']/i) || [])[1] || '';\nadd('Meta description present', desc.length > 0, 'Add a meta description (120-160 chars).', 15);\nconst h1 = (lower.match(/<h1[\\s>]/g) || []).length;\nadd('H1 heading present', h1 >= 1, 'Add exactly one <h1> with your main keyword.', 10);\nadd('Mobile viewport meta', /<meta[^>]*name=[\"']viewport[\"']/i.test(html), 'Add <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">.', 10);\nadd('HTTPS', url.toLowerCase().indexOf('https://') === 0, 'Serve the site over HTTPS.', 10);\nadd('Schema.org / JSON-LD markup', /schema\\.org|application\\/ld\\+json/i.test(html), 'Add LocalBusiness JSON-LD schema for rich results.', 10);\nadd('Canonical tag', /<link[^>]*rel=[\"']canonical[\"']/i.test(html), 'Add a canonical link tag.', 5);\nadd('Open Graph tags', /property=[\"']og:/i.test(html), 'Add Open Graph tags for social sharing.', 5);\nconst imgs = (lower.match(/<img[\\s>]/g) || []).length;\nconst alts = (lower.match(/<img[^>]*alt=[\"'][^\"']+[\"']/g) || []).length;\nadd('Images have alt text', imgs === 0 || alts >= imgs * 0.8, alts + '/' + imgs + ' images have alt text. Add descriptive alt attributes.', 5);\nconst words = html.replace(/<[^>]*>/g, ' ').split(/\\s+/).filter(w => w.length > 2).length;\nadd('Enough content (300+ words)', words >= 300, 'Add more descriptive content. Current ~' + words + ' words.', 5);\n\nlet score = 0, maxW = 0;\nconst fixes = [];\nchecks.forEach(c => { maxW += c.weight; if (c.pass) score += c.weight; else fixes.push(c.fix); });\nscore = Math.round(score / maxW * 100);\nconst grade = score >= 90 ? 'A' : score >= 75 ? 'B' : score >= 60 ? 'C' : score >= 40 ? 'D' : 'F';\nreturn [{ json: {\n  business_name: business, website_url: url, location: location, keyword: keyword,\n  score: score, grade: grade,\n  summary: business + ' scores ' + score + '/100 (grade ' + grade + ') on on-page SEO basics. ' + fixes.length + ' fixes recommended.',\n  checks: checks, fixes: fixes,\n  note: 'This audit covers on-page SEO basics checkable without paid APIs. Google Maps ranking position needs a SERP API (paid) - ask us for the full audit.',\n  receivedAt: new Date().toISOString()\n}}];\n",
+        "mode": "runOnceForAllItems"
+      },
+      "position": [
+        980,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "h4",
+      "name": "Send Audit",
+      "parameters": {
+        "options": {
+          "responseCode": 200
+        },
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "position": [
+        1240,
+        300
+      ],
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1
+    }
+  ],
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

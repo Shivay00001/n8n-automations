@@ -1,0 +1,82 @@
+{
+  "active": false,
+  "connections": {
+    "Keyword Webhook": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Generate Plan",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Generate Plan": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Send Plan",
+            "type": "main"
+          }
+        ]
+      ]
+    }
+  },
+  "name": "VQ Keyword Planner",
+  "nodes": [
+    {
+      "id": "i1",
+      "name": "Keyword Webhook",
+      "parameters": {
+        "httpMethod": "POST",
+        "options": {},
+        "path": "kw-in",
+        "responseMode": "responseNode"
+      },
+      "position": [
+        200,
+        300
+      ],
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "c9c9c9c9-0000-4000-8000-0000000000c9"
+    },
+    {
+      "id": "i2",
+      "name": "Generate Plan",
+      "parameters": {
+        "jsCode": "const _raw = $input.first().json;\nconst _in = (_raw && typeof _raw === 'object' && _raw.body && typeof _raw.body === 'object') ? _raw.body : _raw;\nconst seed = (_in.seed_keyword || 'services').toString().trim();\nconst loc = (_in.location || '').toString().trim();\nconst biz = (_in.business_type || 'business').toString().trim();\nconst mods = ['best', 'affordable', 'top 10', 'near me', loc, seed + ' price', seed + ' cost'];\nconst keywords = [];\nmods.forEach(m => { if (m) keywords.push((seed + ' ' + m).trim()); });\nkeywords.push('how much does ' + seed + ' cost' + (loc ? ' in ' + loc : ''));\nkeywords.push('best ' + seed + (loc ? ' in ' + loc : '') + ' near me');\nconst brief = keywords.slice(0, 5).map((k, i) => ({\n  keyword: k,\n  title_idea: k.charAt(0).toUpperCase() + k.slice(1) + ' - ' + biz + (loc ? ' | ' + loc : ''),\n  intent: /price|cost|how much/.test(k) ? 'commercial' : /best|top/.test(k) ? 'commercial-investigation' : 'local'\n}));\nreturn [{ json: { seed_keyword: seed, location: loc, business_type: biz,\n  keywords: keywords, content_brief: brief,\n  note: 'Target one keyword per page. Commercial-intent keywords bring bookings fastest.',\n  status: 'planned', receivedAt: new Date().toISOString() } }];\n",
+        "mode": "runOnceForAllItems"
+      },
+      "position": [
+        460,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "i3",
+      "name": "Send Plan",
+      "parameters": {
+        "options": {
+          "responseCode": 200
+        },
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "position": [
+        720,
+        300
+      ],
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1
+    }
+  ],
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

@@ -1,0 +1,134 @@
+{
+  "active": false,
+  "connections": {
+    "SDR Webhook": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Qualify Fit",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Qualify Fit": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Worth Pursuing?",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Worth Pursuing?": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Send Result",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "Send Result",
+            "type": "main"
+          }
+        ]
+      ]
+    }
+  },
+  "name": "VQ AI SDR Agent",
+  "nodes": [
+    {
+      "id": "g1",
+      "name": "SDR Webhook",
+      "parameters": {
+        "httpMethod": "POST",
+        "options": {},
+        "path": "sdr-lead",
+        "responseMode": "responseNode"
+      },
+      "position": [
+        200,
+        300
+      ],
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "a7a7a7a7-0000-4000-8000-0000000000a7"
+    },
+    {
+      "id": "g2",
+      "name": "Qualify Fit",
+      "parameters": {
+        "jsCode": "const _raw = $input.first().json;\nconst _in = (_raw && typeof _raw === 'object' && _raw.body && typeof _raw.body === 'object') ? _raw.body : _raw;\nconst name = (_in.name || 'there').toString().trim();\nconst company = (_in.company || '').toString();\nconst email = (_in.email || '').toString();\nconst phone = (_in.phone || '').toString();\nconst budget = (_in.budget_hint || '').toString().toLowerCase();\nconst need = (_in.need || '').toString();\nlet score = 0; const reasons = [];\nif (company) { score += 20; reasons.push('Company known (+20)'); }\nif (/@/.test(email) && !/gmail|yahoo|hotmail/.test(email)) { score += 15; reasons.push('Work email (+15)'); }\nif (/high|5000|10k|approved/.test(budget)) { score += 25; reasons.push('Budget signal (+25)'); }\nif (need.length > 10) { score += 20; reasons.push('Clear need (+20)'); }\nif (phone.replace(/\\D/g, '').length >= 10) { score += 20; reasons.push('Phone provided (+20)'); }\nconst tier = score >= 70 ? 'HOT' : score >= 40 ? 'WARM' : 'COLD';\nconst slots = [];\nconst d = new Date(Date.now() + 19800000); let added = 0;\nwhile (added < 2) { d.setUTCDate(d.getUTCDate() + 1); const day = d.getUTCDay();\n  if (day !== 0 && day !== 6) { const s = d.toISOString().slice(0, 10);\n    slots.push(s + ' 11:00 IST', s + ' 16:00 IST'); added++; } }\nreturn [{ json: { name: name, company: company, email: email, phone: phone,\n  source: (_in.source || 'website').toString(), fit_score: score, tier: tier, reasons: reasons,\n  goodFit: tier !== 'COLD',\n  first_touch: 'Hi ' + name + '! Saw your interest via ' + (_in.source || 'our website') +\n    ' - quick question: what is the #1 thing you want to fix this month?',\n  meeting_slots: slots,\n  next_action: tier === 'HOT' ? 'Call within 30 min + send calendar invite' :\n    tier === 'WARM' ? 'Send first-touch message, follow up in 4 hours' : 'Add to nurture sequence',\n  status: 'qualified', receivedAt: new Date().toISOString() } }];\n",
+        "mode": "runOnceForAllItems"
+      },
+      "position": [
+        460,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "g3",
+      "name": "Worth Pursuing?",
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.goodFit }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              },
+              "rightValue": true
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          }
+        },
+        "options": {}
+      },
+      "position": [
+        720,
+        300
+      ],
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2
+    },
+    {
+      "id": "g4",
+      "name": "Send Result",
+      "parameters": {
+        "options": {
+          "responseCode": 200
+        },
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "position": [
+        980,
+        300
+      ],
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1
+    }
+  ],
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

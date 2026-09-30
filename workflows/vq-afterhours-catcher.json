@@ -1,0 +1,134 @@
+{
+  "active": false,
+  "connections": {
+    "Missed Call Webhook": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "After-Hours Check",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "After-Hours Check": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Is After Hours?",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Is After Hours?": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Send Text-Back",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "Send Text-Back",
+            "type": "main"
+          }
+        ]
+      ]
+    }
+  },
+  "name": "VQ After-Hours Lead Catcher",
+  "nodes": [
+    {
+      "id": "c1",
+      "name": "Missed Call Webhook",
+      "parameters": {
+        "httpMethod": "POST",
+        "options": {},
+        "path": "missed-call",
+        "responseMode": "responseNode"
+      },
+      "position": [
+        240,
+        300
+      ],
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "e1c1c1c1-0000-4000-8000-000000000003"
+    },
+    {
+      "id": "c2",
+      "name": "After-Hours Check",
+      "parameters": {
+        "jsCode": "const _raw = $input.first().json;\nconst _in = (_raw && typeof _raw === 'object' && _raw.body && typeof _raw.body === 'object') ? _raw.body : _raw;\nconst callerPhone = (_in.caller_phone || '').toString();\nconst callerName = (_in.caller_name || 'there').toString().trim();\nconst business = (_in.business || 'our business').toString();\nconst openH = (_in.business_open || '09:00').toString();\nconst closeH = (_in.business_close || '21:00').toString();\nconst missedAt = _in.missed_at ? new Date(_in.missed_at) : new Date();\nif (isNaN(missedAt.getTime())) throw new Error('Invalid missed_at. Send ISO datetime, e.g. 2026-09-27T23:30:00.');\n\nconst toMin = (t) => { const p = t.split(':'); return parseInt(p[0], 10) * 60 + parseInt(p[1], 10); };\nconst mins = missedAt.getHours() * 60 + missedAt.getMinutes();\nconst afterHours = mins < toMin(openH) || mins >= toMin(closeH);\n\nlet textBack, callbackAt, priority, status;\nif (afterHours) {\n  const nextOpen = new Date(missedAt);\n  nextOpen.setHours(parseInt(openH.split(':')[0], 10), parseInt(openH.split(':')[1], 10), 0, 0);\n  if (nextOpen.getTime() <= missedAt.getTime()) nextOpen.setDate(nextOpen.getDate() + 1);\n  textBack = 'Hi ' + callerName + '! Sorry we missed your call. ' + business + ' is open ' + openH + '-' + closeH + '. Reply to this message and we will call you first thing in the morning - you are first in line.';\n  callbackAt = nextOpen.toISOString(); priority = 'high'; status = 'after_hours_caught';\n} else {\n  textBack = 'Hi ' + callerName + '! Sorry we missed your call - our team will call you back within 15 minutes.';\n  const cb = new Date(missedAt.getTime() + 15 * 60000);\n  callbackAt = cb.toISOString(); priority = 'normal'; status = 'callback_queued';\n}\n\nreturn [{ json: {\n  status: status, callerPhone: callerPhone, callerName: callerName, business: business,\n  missedAt: missedAt.toISOString(), afterHours: afterHours,\n  textBackMessage: textBack, sendTo: callerPhone,\n  callbackTask: { callAt: callbackAt, phone: callerPhone, name: callerName, priority: priority },\n  receivedAt: new Date().toISOString()\n}}];\n",
+        "mode": "runOnceForAllItems"
+      },
+      "position": [
+        480,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "c3",
+      "name": "Is After Hours?",
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "cond-1",
+              "leftValue": "={{ $json.afterHours }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              },
+              "rightValue": true
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          }
+        },
+        "options": {}
+      },
+      "position": [
+        700,
+        300
+      ],
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2
+    },
+    {
+      "id": "c4",
+      "name": "Send Text-Back",
+      "parameters": {
+        "options": {
+          "responseCode": 200
+        },
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "position": [
+        920,
+        300
+      ],
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1
+    }
+  ],
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

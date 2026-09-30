@@ -1,0 +1,134 @@
+{
+  "active": false,
+  "connections": {
+    "Ticket Webhook": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Triage Ticket",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Triage Ticket": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Escalate?",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Escalate?": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Send Result",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "Send Result",
+            "type": "main"
+          }
+        ]
+      ]
+    }
+  },
+  "name": "VQ Support Ticket Triage Agent",
+  "nodes": [
+    {
+      "id": "f1",
+      "name": "Ticket Webhook",
+      "parameters": {
+        "httpMethod": "POST",
+        "options": {},
+        "path": "ticket-in",
+        "responseMode": "responseNode"
+      },
+      "position": [
+        200,
+        300
+      ],
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "f6f6f6f6-0000-4000-8000-0000000000f6"
+    },
+    {
+      "id": "f2",
+      "name": "Triage Ticket",
+      "parameters": {
+        "jsCode": "const _raw = $input.first().json;\nconst _in = (_raw && typeof _raw === 'object' && _raw.body && typeof _raw.body === 'object') ? _raw.body : _raw;\nconst text = ((_in.subject || '') + ' ' + (_in.body || '')).toLowerCase();\nconst catRules = [\n  ['billing', ['invoice', 'bill', 'payment', 'charged', 'refund', 'subscription', 'price']],\n  ['technical', ['error', 'bug', 'crash', 'not working', 'broken', 'slow', 'login', 'down', 'outage']],\n  ['account', ['password', 'account', 'signup', 'delete account', 'access']]\n];\nlet category = 'general';\nfor (const r of catRules) { if (r[1].some(k => text.includes(k))) { category = r[0]; break; } }\nlet urgency = 'low', uscore = 10;\nif (/outage|down|breach|hack|data loss|security/.test(text)) { urgency = 'critical'; uscore = 100; }\nelse if (/refund|angry|furious|cancel|complaint|sue|asap/.test(text)) { urgency = 'high'; uscore = 75; }\nelse if (/error|broken|not working|payment failed/.test(text)) { urgency = 'normal'; uscore = 50; }\nconst replies = {\n  billing: 'Thanks for flagging this! Our billing team is checking your account and will update you within 4 business hours.',\n  technical: 'Sorry about this! Our tech team is on it. Please share a screenshot and the steps to reproduce so we fix it faster.',\n  account: 'Got it! For account security, please confirm your registered email and we will sort this out right away.',\n  general: 'Thanks for reaching out! Our support team will reply within 4 business hours.'\n};\nconst escalate = urgency === 'critical' || urgency === 'high';\nreturn [{ json: { customer: (_in.customer || '').toString(), channel: (_in.channel || 'web').toString(),\n  subject: (_in.subject || '').toString(), category: category, urgency: urgency, urgency_score: uscore,\n  suggested_reply: replies[category], escalated: escalate,\n  owner_alert: escalate ? ('ESCALATE [' + urgency + '/' + category + ']: ' + (_in.subject || '')) : null,\n  status: 'triaged', receivedAt: new Date().toISOString() } }];\n",
+        "mode": "runOnceForAllItems"
+      },
+      "position": [
+        460,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "f3",
+      "name": "Escalate?",
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.escalated }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              },
+              "rightValue": true
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          }
+        },
+        "options": {}
+      },
+      "position": [
+        720,
+        300
+      ],
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2
+    },
+    {
+      "id": "f4",
+      "name": "Send Result",
+      "parameters": {
+        "options": {
+          "responseCode": 200
+        },
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "position": [
+        980,
+        300
+      ],
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1
+    }
+  ],
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

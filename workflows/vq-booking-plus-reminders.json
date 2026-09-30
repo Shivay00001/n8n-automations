@@ -1,0 +1,204 @@
+{
+  "active": false,
+  "connections": {
+    "Booking Webhook": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Prepare Booking",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Confirm Booking": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Wait Until Reminder",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Create Calendar Event": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Send Confirmation",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Prepare Booking": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Create Calendar Event",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Send Confirmation": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Confirm Booking",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Wait Until Reminder": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Send Reminder",
+            "type": "main"
+          }
+        ]
+      ]
+    }
+  },
+  "name": "VQ Appointment Booker + Reminders",
+  "nodes": [
+    {
+      "id": "5448be2f-2f7c-452f-aecb-308f5a29cb5e",
+      "name": "Booking Webhook",
+      "parameters": {
+        "httpMethod": "POST",
+        "options": {},
+        "path": "booking-in",
+        "responseMode": "responseNode"
+      },
+      "position": [
+        240,
+        300
+      ],
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "b1633e8b-e43a-4313-a402-acf4017df329"
+    },
+    {
+      "id": "a17b7af3-90f2-479b-ab22-78add998f9b5",
+      "name": "Prepare Booking",
+      "parameters": {
+        "jsCode": "const _raw = $input.first().json;\nconst d = (_raw && typeof _raw === 'object' && _raw.body && typeof _raw.body === 'object') ? _raw.body : _raw;\nconst name = (d.name || 'Guest').toString().trim();\nconst service = (d.service || 'consultation').toString();\nconst date = d.date; // YYYY-MM-DD\nconst time = d.time || '10:00'; // HH:MM (24h)\nconst start = new Date(date + 'T' + time + ':00');\nif (isNaN(start.getTime())) throw new Error('Invalid date/time. Send date as YYYY-MM-DD and time as HH:MM (24h).');\nconst end = new Date(start.getTime() + 30 * 60000);\nconst reminderAt = new Date(start.getTime() - 24 * 3600000);\nreturn [{ json: {\n  name: name,\n  service: service,\n  phone: (d.phone || '').toString(),\n  email: (d.email || '').toString(),\n  notes: (d.notes || '').toString(),\n  eventStart: start.toISOString(),\n  eventEnd: end.toISOString(),\n  reminderAt: reminderAt.toISOString(),\n  receivedAt: new Date().toISOString()\n}}];",
+        "mode": "runOnceForAllItems"
+      },
+      "position": [
+        480,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "0967e297-1321-4c53-8cb8-fd49da7e9e12",
+      "name": "Create Calendar Event",
+      "parameters": {
+        "additionalFields": {},
+        "calendar": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "description": "=Phone: {{ $json.phone }}\nEmail: {{ $json.email }}\nNotes: {{ $json.notes }}\nBooked via website automation.",
+        "end": "={{ $json.eventEnd }}",
+        "operation": "create",
+        "resource": "calendarEvent",
+        "start": "={{ $json.eventStart }}",
+        "summary": "=Booking: {{ $json.name }} \u2014 {{ $json.service }}"
+      },
+      "position": [
+        700,
+        300
+      ],
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.2
+    },
+    {
+      "id": "22e6b363-ac45-4bc9-b7c2-4a6fcb812345",
+      "name": "Send Confirmation",
+      "parameters": {
+        "emailType": "text",
+        "message": "=Hi {{ $json.name }},\n\nYour booking is confirmed!\n\nService: {{ $json.service }}\nDate/Time: {{ $json.eventStart }}\n\nWe will send you a reminder 24 hours before. Reply to this email if you need to reschedule.\n\n\u2014 Team VisionQuantech",
+        "operation": "send",
+        "options": {
+          "sendTo": "={{ $json.email }}"
+        },
+        "resource": "message",
+        "subject": "=Booking confirmed: {{ $json.service }}"
+      },
+      "position": [
+        920,
+        300
+      ],
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1
+    },
+    {
+      "id": "f10b3e9c-f42f-461b-b370-de17b290224a",
+      "name": "Confirm Booking",
+      "parameters": {
+        "options": {
+          "responseCode": 200
+        },
+        "respondWith": "json",
+        "responseBody": "={{ {status: 'booking_confirmed', name: $('Prepare Booking').json.name, service: $('Prepare Booking').json.service, eventStart: $('Prepare Booking').json.eventStart} }}"
+      },
+      "position": [
+        1140,
+        300
+      ],
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1
+    },
+    {
+      "id": "6610f70a-0090-4749-9fd8-e2917fe26a82",
+      "name": "Wait Until Reminder",
+      "parameters": {
+        "dateTime": "={{ $('Prepare Booking').json.reminderAt }}",
+        "resume": "specificTime"
+      },
+      "position": [
+        1360,
+        300
+      ],
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1
+    },
+    {
+      "id": "cf2bfbe0-834d-4587-affe-c5cf7c6d8dd0",
+      "name": "Send Reminder",
+      "parameters": {
+        "emailType": "text",
+        "message": "=Hi {{ $('Prepare Booking').json.name }},\n\nFriendly reminder: your {{ $('Prepare Booking').json.service }} booking is tomorrow at {{ $('Prepare Booking').json.eventStart }}.\n\nSee you soon!\n\n\u2014 Team VisionQuantech",
+        "operation": "send",
+        "options": {
+          "sendTo": "={{ $('Prepare Booking').json.email }}"
+        },
+        "resource": "message",
+        "subject": "=Reminder: your booking is tomorrow"
+      },
+      "position": [
+        1580,
+        300
+      ],
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1
+    }
+  ],
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

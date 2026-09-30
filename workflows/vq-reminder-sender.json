@@ -1,0 +1,182 @@
+{
+  "active": false,
+  "connections": {
+    "Reminder Webhook": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Compute Schedule",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Compute Schedule": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Acknowledge",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Acknowledge": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Has Sender?",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Has Sender?": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Wait Until Time",
+            "type": "main"
+          }
+        ],
+        []
+      ]
+    },
+    "Wait Until Time": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Send Reminder",
+            "type": "main"
+          }
+        ]
+      ]
+    }
+  },
+  "name": "VQ Reminder Sender",
+  "nodes": [
+    {
+      "id": "d1",
+      "name": "Reminder Webhook",
+      "parameters": {
+        "httpMethod": "POST",
+        "options": {},
+        "path": "reminder-in",
+        "responseMode": "responseNode"
+      },
+      "position": [
+        200,
+        300
+      ],
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "d4d4d4d4-0000-4000-8000-0000000000d4"
+    },
+    {
+      "id": "d2",
+      "name": "Compute Schedule",
+      "parameters": {
+        "jsCode": "const _raw = $input.first().json;\nconst _in = (_raw && typeof _raw === 'object' && _raw.body && typeof _raw.body === 'object') ? _raw.body : _raw;\nconst send_at = (_in.send_at || '').toString();\nconst t = Date.parse(send_at);\nconst cb = (_in.callback_url || '').toString();\nreturn [{ json: { to: (_in.to || '').toString(), message: (_in.message || '').toString(),\n  send_at: send_at, valid: !isNaN(t) && t > Date.now(), callback_url: cb,\n  hasSender: cb.length > 10, status: 'scheduled', receivedAt: new Date().toISOString() } }];\n",
+        "mode": "runOnceForAllItems"
+      },
+      "position": [
+        420,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "d3",
+      "name": "Acknowledge",
+      "parameters": {
+        "options": {
+          "responseCode": 200
+        },
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "position": [
+        640,
+        300
+      ],
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1
+    },
+    {
+      "id": "d4",
+      "name": "Has Sender?",
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.hasSender }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              },
+              "rightValue": true
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          }
+        },
+        "options": {}
+      },
+      "position": [
+        860,
+        300
+      ],
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2
+    },
+    {
+      "id": "d5",
+      "name": "Wait Until Time",
+      "parameters": {
+        "resume": "specificTime",
+        "dateTime": "={{ $json.send_at }}"
+      },
+      "position": [
+        1080,
+        300
+      ],
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1
+    },
+    {
+      "id": "d6",
+      "name": "Send Reminder",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.callback_url }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ to: $json.to, message: $json.message, type: 'reminder' }) }}",
+        "options": {}
+      },
+      "position": [
+        1300,
+        300
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2
+    }
+  ],
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

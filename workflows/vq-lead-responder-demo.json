@@ -1,0 +1,134 @@
+{
+  "active": false,
+  "connections": {
+    "Is Hot Lead": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Send Reply",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "Send Reply",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Lead Webhook": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Qualify Lead",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Qualify Lead": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Is Hot Lead",
+            "type": "main"
+          }
+        ]
+      ]
+    }
+  },
+  "name": "VQ Instant Lead Responder \u2014 Demo",
+  "nodes": [
+    {
+      "id": "8584e42d-0fe8-4187-b504-539c2de84299",
+      "name": "Lead Webhook",
+      "parameters": {
+        "httpMethod": "POST",
+        "options": {},
+        "path": "lead-in",
+        "responseMode": "responseNode"
+      },
+      "position": [
+        240,
+        300
+      ],
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "07a6a1ae-725c-40f8-8a9e-bab073053cd4"
+    },
+    {
+      "id": "24e2f1d5-a80c-4159-912c-ab1f2cb91f25",
+      "name": "Qualify Lead",
+      "parameters": {
+        "jsCode": "const _raw = $input.first().json;\nconst data = (_raw && typeof _raw === 'object' && _raw.body && typeof _raw.body === 'object') ? _raw.body : _raw;\nconst name = (data.name || 'there').toString().trim();\nconst service = (data.service || 'general').toString().toLowerCase();\nconst message = (data.message || '').toString().toLowerCase();\nconst phone = (data.phone || '').toString();\nconst email = (data.email || '').toString();\n\nconst hotKeywords = ['urgent','asap','today','tomorrow','price','cost','book','appointment','demo','interested','call me','quote','emi','discount'];\nconst warmKeywords = ['info','details','timing','location','services','offer','how','when','where'];\nlet score = 30;\nfor (const k of hotKeywords) { if (message.includes(k)) score += 12; }\nfor (const k of warmKeywords) { if (message.includes(k)) score += 6; }\nif (phone) score += 10;\nif (email) score += 8;\nif (service !== 'general') score += 5;\nscore = Math.min(score, 99);\n\nconst tier = score >= 70 ? 'HOT' : score >= 45 ? 'WARM' : 'COLD';\nconst replies = {\n  HOT: 'Hi ' + name + '! Thanks for reaching out about ' + service + ' \u2014 your enquiry is marked PRIORITY. Our team will call you within 30 minutes. Anything specific I can help with right away?',\n  WARM: 'Hi ' + name + '! Thanks for your interest in ' + service + '. We will get back within 2 business hours. Want me to book a free 15-min consultation for you?',\n  COLD: 'Hi ' + name + '! Thanks for contacting us about ' + service + '. We will review your message and respond within 24 hours.'\n};\n\nreturn [{ json: {\n  name: name,\n  phone: phone,\n  email: email,\n  service: service,\n  message: data.message || '',\n  score: score,\n  tier: tier,\n  reply: replies[tier],\n  nextAction: tier === 'HOT' ? 'Call within 30 min' : tier === 'WARM' ? 'Follow up within 2 hrs' : 'Follow up within 24 hrs',\n  receivedAt: new Date().toISOString()\n}}];",
+        "mode": "runOnceForAllItems"
+      },
+      "position": [
+        480,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "2888d0f3-2fac-40cd-90a1-c3d8b8866e0c",
+      "name": "Is Hot Lead",
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "cond-hot-lead",
+              "leftValue": "={{ $json.score }}",
+              "operator": {
+                "operation": "largerEqual",
+                "singleValue": true,
+                "type": "number"
+              },
+              "rightValue": 70
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          }
+        },
+        "options": {}
+      },
+      "position": [
+        700,
+        300
+      ],
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2
+    },
+    {
+      "id": "5589e6d7-3445-4e97-a76a-1bfa1737e9a0",
+      "name": "Send Reply",
+      "parameters": {
+        "options": {
+          "responseCode": 200
+        },
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "position": [
+        920,
+        300
+      ],
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1
+    }
+  ],
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

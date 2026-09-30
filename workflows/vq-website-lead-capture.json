@@ -1,0 +1,134 @@
+{
+  "active": false,
+  "connections": {
+    "Lead Form Webhook": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Validate & Score",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Validate & Score": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Valid?",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Valid?": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Send Result",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "Send Result",
+            "type": "main"
+          }
+        ]
+      ]
+    }
+  },
+  "name": "VQ Website Lead Capture",
+  "nodes": [
+    {
+      "id": "e1",
+      "name": "Lead Form Webhook",
+      "parameters": {
+        "httpMethod": "POST",
+        "options": {},
+        "path": "lead-form",
+        "responseMode": "responseNode"
+      },
+      "position": [
+        200,
+        300
+      ],
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "e5e5e5e5-0000-4000-8000-0000000000e5"
+    },
+    {
+      "id": "e2",
+      "name": "Validate & Score",
+      "parameters": {
+        "jsCode": "const _raw = $input.first().json;\nconst _in = (_raw && typeof _raw === 'object' && _raw.body && typeof _raw.body === 'object') ? _raw.body : _raw;\nconst errors = [];\nconst name = (_in.name || '').toString().trim();\nconst phone = (_in.phone || '').toString();\nconst email = (_in.email || '').toString();\nconst service = (_in.service || '').toString();\nif (!name) errors.push('name is required');\nif (phone.replace(/\\D/g, '').length < 10) errors.push('valid phone is required');\nif (email && !/^[\\w.%-]+@[\\w.-]+\\.[a-zA-Z]{2,}$/.test(email)) errors.push('email looks invalid');\nlet score = 0;\nif (phone.replace(/\\D/g, '').length >= 10) score += 40;\nif (/@/.test(email)) score += 25;\nif (service) score += 20;\nif ((_in.message || '').toString().length > 20) score += 15;\nreturn [{ json: { name: name, phone: phone, email: email, service: service,\n  message: (_in.message || '').toString(), page_url: (_in.page_url || '').toString(),\n  valid: errors.length === 0, errors: errors, score: score,\n  tier: score >= 70 ? 'HOT' : score >= 40 ? 'WARM' : 'COLD',\n  owner_alert: errors.length === 0 ? ('New ' + score + '-point lead: ' + name + ' (' + phone + ') via ' + service) : null,\n  status: errors.length === 0 ? 'captured' : 'invalid', receivedAt: new Date().toISOString() } }];\n",
+        "mode": "runOnceForAllItems"
+      },
+      "position": [
+        460,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "e3",
+      "name": "Valid?",
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.valid }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              },
+              "rightValue": true
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          }
+        },
+        "options": {}
+      },
+      "position": [
+        720,
+        300
+      ],
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2
+    },
+    {
+      "id": "e4",
+      "name": "Send Result",
+      "parameters": {
+        "options": {
+          "responseCode": 200
+        },
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "position": [
+        980,
+        300
+      ],
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1
+    }
+  ],
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

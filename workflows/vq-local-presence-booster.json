@@ -1,0 +1,82 @@
+{
+  "active": false,
+  "connections": {
+    "Presence Webhook": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Build Presence Plan",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Build Presence Plan": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Send Plan",
+            "type": "main"
+          }
+        ]
+      ]
+    }
+  },
+  "name": "VQ Local Presence Booster",
+  "nodes": [
+    {
+      "id": "j1",
+      "name": "Presence Webhook",
+      "parameters": {
+        "httpMethod": "POST",
+        "options": {},
+        "path": "presence-in",
+        "responseMode": "responseNode"
+      },
+      "position": [
+        200,
+        300
+      ],
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "d0d0d0d0-0000-4000-8000-0000000000d0"
+    },
+    {
+      "id": "j2",
+      "name": "Build Presence Plan",
+      "parameters": {
+        "jsCode": "const _raw = $input.first().json;\nconst _in = (_raw && typeof _raw === 'object' && _raw.body && typeof _raw.body === 'object') ? _raw.body : _raw;\nconst biz = (_in.business_name || 'your business').toString();\nconst cat = (_in.category || 'business').toString();\nconst city = (_in.city || '').toString();\nconst link = (_in.review_link || '').toString();\nreturn [{ json: { business_name: biz,\n  maps_checklist: [\n    'Claim and verify the Google Business Profile for ' + biz,\n    'NAP consistency: name, address, phone identical on website, GBP and directories',\n    'Primary category set to \"' + cat + '\"' + (city ? ', service areas include ' + city : ''),\n    'Opening hours complete including holidays',\n    'Add 10+ real photos (exterior, interior, team, work)',\n    'List all services/products with descriptions',\n    'Enable messaging and Q&A on the profile'\n  ],\n  review_plan: [\n    'Ask every happy customer for a review within 24 hours of service',\n    'Review link: ' + (link || 'ADD-YOUR-GOOGLE-REVIEW-LINK'),\n    'Print the link as a QR code at billing counter / on receipts',\n    'Reply to every review within 48 hours (thank positive, resolve negative)'\n  ],\n  weekly_post_ideas: [\n    'Offer of the week at ' + biz,\n    'Behind the scenes: meet the team',\n    'Customer story / before-after',\n    'Local tip related to ' + cat\n  ],\n  has_website: !!_in.has_website,\n  website_note: _in.has_website ? 'Website present - run the VQ SEO Audit Agent on it next.' : 'No website detected - this is the #1 Maps ranking blocker. Pitch a website first.',\n  status: 'planned', receivedAt: new Date().toISOString() } }];\n",
+        "mode": "runOnceForAllItems"
+      },
+      "position": [
+        460,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "j3",
+      "name": "Send Plan",
+      "parameters": {
+        "options": {
+          "responseCode": 200
+        },
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "position": [
+        720,
+        300
+      ],
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1
+    }
+  ],
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

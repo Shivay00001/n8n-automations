@@ -1,0 +1,188 @@
+{
+  "active": false,
+  "connections": {
+    "Email Webhook": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Classify Email",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Classify Email": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Draft Reply",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Draft Reply": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Has Sender?",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Has Sender?": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Send Email",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "Send Result",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Send Email": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Send Result",
+            "type": "main"
+          }
+        ]
+      ]
+    }
+  },
+  "name": "VQ Email AI Agent",
+  "nodes": [
+    {
+      "id": "b1",
+      "name": "Email Webhook",
+      "parameters": {
+        "httpMethod": "POST",
+        "options": {},
+        "path": "email-in",
+        "responseMode": "responseNode"
+      },
+      "position": [
+        200,
+        300
+      ],
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "b2b2b2b2-0000-4000-8000-0000000000b2"
+    },
+    {
+      "id": "b2",
+      "name": "Classify Email",
+      "parameters": {
+        "jsCode": "const _raw = $input.first().json;\nconst _in = (_raw && typeof _raw === 'object' && _raw.body && typeof _raw.body === 'object') ? _raw.body : _raw;\nconst text = ((_in.subject || '') + ' ' + (_in.body || '')).toLowerCase();\nconst email = (_in.from || _in.email || '').toString();\nconst rules = [\n  ['billing', ['invoice', 'bill', 'payment', 'charged', 'refund', 'subscription']],\n  ['support', ['error', 'bug', 'not working', 'broken', 'help', 'issue', 'problem']],\n  ['partnership', ['partner', 'collaborat', 'resell', 'affiliate', 'invest']],\n  ['spam', ['lottery', 'winner', 'crypto double', 'inheritance']]\n];\nlet intent = 'general';\nfor (const r of rules) { if (r[1].some(k => text.includes(k))) { intent = r[0]; break; } }\nconst priority = /refund|legal|sue|urgent|asap|complaint|angry|cancel/.test(text) ? 'high' : 'normal';\nconst cb = (_in.callback_url || '').toString();\nreturn [{ json: { email: email, subject: (_in.subject || '').toString(), intent: intent,\n  priority: priority, callback_url: cb, hasSender: cb.length > 10 } }];\n",
+        "mode": "runOnceForAllItems"
+      },
+      "position": [
+        420,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "b3",
+      "name": "Draft Reply",
+      "parameters": {
+        "jsCode": "const _raw = $input.first().json;\nconst _in = (_raw && typeof _raw === 'object' && _raw.body && typeof _raw.body === 'object') ? _raw.body : _raw;\nconst name = (_in.email || 'there').toString().split('@')[0];\nconst t = {\n  billing: 'Hi ' + name + ', thanks for writing about billing. Our team will reply within 4 business hours with your invoice details.',\n  support: 'Hi ' + name + ', sorry for the trouble! Please share your account/order ID and a screenshot so we can resolve this in one go.',\n  partnership: 'Hi ' + name + ', thanks for reaching out! Our partnerships team will schedule a call with you this week.',\n  spam: '',\n  general: 'Hi ' + name + ', thanks for writing in! Our team will reply within 4 business hours.'\n};\nreturn [{ json: Object.assign({}, _in, { draftSubject: 'Re: ' + _in.subject,\n  draftBody: t[_in.intent] || t.general, status: 'drafted', receivedAt: new Date().toISOString() }) }];\n",
+        "mode": "runOnceForAllItems"
+      },
+      "position": [
+        640,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "b4",
+      "name": "Has Sender?",
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.hasSender }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              },
+              "rightValue": true
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          }
+        },
+        "options": {}
+      },
+      "position": [
+        860,
+        300
+      ],
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2
+    },
+    {
+      "id": "b5",
+      "name": "Send Email",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.callback_url }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ to: $json.email, subject: $json.draftSubject, body: $json.draftBody }) }}",
+        "options": {}
+      },
+      "position": [
+        1080,
+        300
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2
+    },
+    {
+      "id": "b6",
+      "name": "Send Result",
+      "parameters": {
+        "options": {
+          "responseCode": 200
+        },
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "position": [
+        1300,
+        300
+      ],
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1
+    }
+  ],
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

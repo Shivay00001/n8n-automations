@@ -1,0 +1,184 @@
+{
+  "active": false,
+  "connections": {
+    "Chat Webhook": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Build Context",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Build Context": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Answer",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Answer": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Fallback?",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Fallback?": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Human Handoff",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "Send Chat Reply",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Human Handoff": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Send Chat Reply",
+            "type": "main"
+          }
+        ]
+      ]
+    }
+  },
+  "name": "VQ Website Chatbot",
+  "nodes": [
+    {
+      "id": "g1",
+      "name": "Chat Webhook",
+      "parameters": {
+        "httpMethod": "POST",
+        "options": {},
+        "path": "chat",
+        "responseMode": "responseNode"
+      },
+      "position": [
+        200,
+        300
+      ],
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "f2f2f2f2-0000-4000-8000-000000000002"
+    },
+    {
+      "id": "g2",
+      "name": "Build Context",
+      "parameters": {
+        "jsCode": "const _raw = $input.first().json;\nconst _in = (_raw && typeof _raw === 'object' && _raw.body && typeof _raw.body === 'object') ? _raw.body : _raw;\nconst session_id = (_in.session_id || 's-' + Date.now()).toString();\nconst message = (_in.message || '').toString();\nconst history = (Array.isArray(_in.history) ? _in.history : []).slice(-9);\nhistory.push({ role: 'user', text: message });\nreturn [{ json: { session_id: session_id, history: history, message: message } }];\n",
+        "mode": "runOnceForAllItems"
+      },
+      "position": [
+        420,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "g3",
+      "name": "Answer",
+      "parameters": {
+        "jsCode": "const _raw = $input.first().json;\nconst _in = (_raw && typeof _raw === 'object' && _raw.body && typeof _raw.body === 'object') ? _raw.body : _raw;\nconst msg = (_in.message || '').toLowerCase();\nconst phoneHit = (_in.message || '').match(/(\\+?\\d[\\d\\s-]{7,14}\\d)/);\nconst emailHit = (_in.message || '').match(/[\\w.%-]+@[\\w.-]+\\.[a-zA-Z]{2,}/);\nconst faqs = [\n  { k: ['price', 'cost', 'charge', 'fee', 'quote'], a: 'Our plans are tailored to your needs and start affordably. Share your phone number and our team will call with an exact quote within 30 minutes.' },\n  { k: ['timing', 'open', 'hours', 'when'], a: 'We are open 9 AM to 9 PM, all 7 days.' },\n  { k: ['location', 'address', 'where'], a: 'We serve customers across the city. Share your area and we will guide you to the nearest option.' },\n  { k: ['book', 'appointment', 'visit', 'schedule'], a: 'Sure! Please share your name and phone number and we will confirm your slot right away.' },\n  { k: ['service', 'offer', 'what do you do'], a: 'We handle enquiries, bookings, follow-ups and reminders for your business - 24/7, automatically.' }\n];\nlet reply = null, lead = null;\nif (phoneHit || emailHit) {\n  lead = { phone: phoneHit ? phoneHit[0] : '', email: emailHit ? emailHit[0] : '' };\n  reply = 'Thanks! Our team will call you within 30 minutes to help further.';\n} else {\n  const hit = faqs.find(f => f.k.some(k => msg.includes(k)));\n  reply = hit ? hit.a : null;\n}\nconst history = (_in.history || []).concat([{ role: 'assistant', text: reply || '__handoff__' }]);\nreturn [{ json: { session_id: _in.session_id, history: history, reply: reply,\n  fallback: !reply, lead_captured: !!lead, lead: lead } }];\n",
+        "mode": "runOnceForAllItems"
+      },
+      "position": [
+        640,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "g4",
+      "name": "Fallback?",
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.fallback }}",
+              "operator": {
+                "operation": "true",
+                "singleValue": true,
+                "type": "boolean"
+              },
+              "rightValue": true
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          }
+        },
+        "options": {}
+      },
+      "position": [
+        860,
+        300
+      ],
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2
+    },
+    {
+      "id": "g5",
+      "name": "Human Handoff",
+      "parameters": {
+        "jsCode": "const _raw = $input.first().json;\nconst _in = (_raw && typeof _raw === 'object' && _raw.body && typeof _raw.body === 'object') ? _raw.body : _raw;\nconst history = (_in.history || []).slice(0, -1).concat(\n  [{ role: 'assistant', text: 'Thanks for reaching out! Connecting you to our team - they will join within 2 minutes. Meanwhile, what is your phone number?' }]);\nreturn [{ json: { session_id: _in.session_id, history: history,\n  reply: 'Thanks for reaching out! Connecting you to our team - they will join within 2 minutes. Meanwhile, what is your phone number?',\n  fallback: true, lead_captured: !!_in.lead_captured, lead: _in.lead || null } }];\n",
+        "mode": "runOnceForAllItems"
+      },
+      "position": [
+        1080,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "g6",
+      "name": "Send Chat Reply",
+      "parameters": {
+        "options": {
+          "responseCode": 200
+        },
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "position": [
+        1300,
+        300
+      ],
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1
+    }
+  ],
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
