@@ -44,3 +44,7 @@ n8n 1.83.2 (instance: n8n-1-83-2-pmw1.onrender.com).
 - The 24h reminder uses n8n's Wait node; long waits resume after restarts.
 - The second n8n instance (automation-832k) is currently locked (saved password
   rejected, no SMTP for reset) — everything runs on the working instance.
+
+## Built by VisionQuantech
+
+Part of the [VisionQuantech](https://visionquantech.com/) AI automation studio. See [AI automation services](https://visionquantech.com/ai-automation-services) and the guide to [AI receptionist for dental clinics](https://visionquantech.com/blog/ai-receptionist-for-dental-clinics).
